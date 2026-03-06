@@ -1,0 +1,170 @@
+# servicemap P2P 拓扑 Recording Rules
+#
+# 目标：将多个 categraf 节点上报的
+#   servicemap_edge_active_connections  (源进程 → 目标 IP:port)
+#   servicemap_listen_endpoint          (进程/容器 → 监听 IP:port)
+# 两类指标在 Prometheus 侧 JOIN，生成
+#   servicemap:p2p_edge:*               (源进程 → 目标进程 级别的边)
+#   servicemap:p2p_topology:active      (聚合后的 service→service 拓扑)
+#
+# 部署方式：
+#   1. 将本文件放入 Prometheus --rules-path 目录
+#   2. 或在 prometheus.yml 中引用：
+#      rule_files:
+#        - "rules/servicemap_topology.yml"
+#   3. 触发热加载：curl -X POST http://prometheus:9090/-/reload
+#
+# 依赖指标（来自 servicemap 插件）：
+#   servicemap_edge_active_connections  标签：client_id, client_name, client_type,
+#                                             destination_host, destination_port,
+#                                             namespace, pod_name, instance
+#   servicemap_listen_endpoint          标签：server_id, server_name, server_type,
+#                                             listen_ip, port,
+#                                             namespace, pod_name, instance
+
+groups:
+  - name: servicemap_p2p_topology
+    # interval 与 categraf 的 servicemap interval 对齐（默认 60s）
+    interval: 60s
+
+    rules:
+
+      # ──────────────────────────────────────────────────────────────────────
+      # Step 1: 将 listen_endpoint 的标签重命名为 JOIN 所需格式
+      #
+      # 原始标签：server_id, server_name, server_type（已由插件直接输出）
+      #           namespace, pod_name, listen_ip, port, instance
+      # 输出标签：destination_host, destination_port（与 edge 侧对齐）
+      #           server_id, server_name, server_type（直接透传，无需 rename）
+      #           server_namespace, server_pod_name（K8s 信息重命名）
+      #
+      # 使用 min by(...) 去重：同一 IP:port 可能由多个 categraf 实例上报
+      # ──────────────────────────────────────────────────────────────────────
+      - record: servicemap:listen_endpoint:joinable
+        expr: |
+          min by (
+            destination_host,
+            destination_port,
+            server_id,
+            server_name,
+            server_type,
+            server_namespace,
+            server_pod_name
+          ) (
+            label_replace(
+              label_replace(
+                label_replace(
+                  label_replace(
+                    servicemap_listen_endpoint,
+                    "destination_host", "$1", "listen_ip", "(.*)"
+                  ),
+                  "destination_port", "$1", "port", "(.*)"
+                ),
+                "server_namespace", "$1", "namespace", "(.*)"
+              ),
+              "server_pod_name", "$1", "pod_name", "(.*)"
+            )
+          )
+
+      # ──────────────────────────────────────────────────────────────────────
+      # Step 2: P2P 边 — 活跃连接数（Gauge）
+      #
+      # JOIN 条件：edge.destination_host == listen.destination_host
+      #           AND edge.destination_port == listen.destination_port
+      # group_left 从 listen 侧附加目标进程信息标签
+      #
+      # 结果标签：
+      #   client_id, client_name, client_type           ← 来自 edge（发起方）
+      #   destination_host, destination_port            ← JOIN 键
+      #   server_id, server_name, server_type           ← 来自 listen（接收方）
+      #   server_namespace, server_pod_name             ← 接收方 K8s 信息
+      #   namespace, pod_name                           ← 发起方 K8s 信息
+      # ──────────────────────────────────────────────────────────────────────
+      - record: servicemap:p2p_edge:active_connections
+        expr: |
+          (
+            servicemap_edge_active_connections > 0
+          )
+          * on (destination_host, destination_port)
+          group_left (
+            server_id,
+            server_name,
+            server_type,
+            server_namespace,
+            server_pod_name
+          )
+          servicemap:listen_endpoint:joinable
+
+      # ──────────────────────────────────────────────────────────────────────
+      # Step 3: P2P 边 — TCP 连接建立总数（Counter）
+      #
+      # 与 Step 2 相同的 JOIN，但基于 connects_total counter。
+      # 下游可用 rate() 计算连接速率：
+      #   rate(servicemap:p2p_edge:connects_total[5m])
+      # ──────────────────────────────────────────────────────────────────────
+      - record: servicemap:p2p_edge:connects_total
+        expr: |
+          servicemap_edge_connects_total
+          * on (destination_host, destination_port)
+          group_left (
+            server_id,
+            server_name,
+            server_type,
+            server_namespace,
+            server_pod_name
+          )
+          servicemap:listen_endpoint:joinable
+
+      # ──────────────────────────────────────────────────────────────────────
+      # Step 4: P2P 边 — 字节发送总数（Counter）
+      # ──────────────────────────────────────────────────────────────────────
+      - record: servicemap:p2p_edge:bytes_sent_total
+        expr: |
+          servicemap_edge_bytes_sent_total
+          * on (destination_host, destination_port)
+          group_left (
+            server_id,
+            server_name,
+            server_type,
+            server_namespace,
+            server_pod_name
+          )
+          servicemap:listen_endpoint:joinable
+
+      # ──────────────────────────────────────────────────────────────────────
+      # Step 5: 聚合拓扑视图 — 折叠 IP 维度，只保留服务名/类型
+      #
+      # 用于高层次拓扑展示（"nginx 调用了 mysql"），忽略具体 IP 差异。
+      # sum by(...) 合并多个 Pod/实例的边。
+      #
+      # 结果标签：
+      #   client_name, client_type          ← 发起方服务名和类型
+      #   server_name, server_type          ← 接收方服务名和类型
+      #   server_namespace                  ← 接收方 K8s 命名空间
+      # ──────────────────────────────────────────────────────────────────────
+      - record: servicemap:p2p_topology:active
+        expr: |
+          sum by (
+            client_name,
+            client_type,
+            server_name,
+            server_type,
+            server_namespace
+          ) (
+            servicemap:p2p_edge:active_connections
+          )
+
+      # ──────────────────────────────────────────────────────────────────────
+      # Step 6: 聚合拓扑视图 — 连接速率（用于告警）
+      # ──────────────────────────────────────────────────────────────────────
+      - record: servicemap:p2p_topology:connect_rate5m
+        expr: |
+          sum by (
+            client_name,
+            client_type,
+            server_name,
+            server_type,
+            server_namespace
+          ) (
+            rate(servicemap:p2p_edge:connects_total[5m])
+          )
