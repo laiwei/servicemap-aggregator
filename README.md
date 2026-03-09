@@ -48,7 +48,8 @@ make build
 ./servicemap-aggregator \
   --prometheus-url=http://prometheus:9090 \
   --listen=:9098 \
-  --interval=60s
+  --interval=60s \
+  -remote-write-url=http://prometheus:9090/api/v1/write
 ```
 
 ### 3. 运行（含 K8s Service IP 解析）
@@ -174,6 +175,47 @@ subjects:
 
 > `server_namespace`、`server_pod_name`、`namespace`、`pod_name` 字段为 `omitempty`，
 > 仅在启用 `--enable-k8s` 且成功解析时出现。
+
+### `GET /api/v1/topology/text`
+
+基于 `GET /api/v1/topology` 的相同数据源，返回纯文本格式的拓扑快照。
+
+目标：
+
+- 便于人工直接阅读
+- 便于将结果粘贴给 LLM 做快速理解、总结或排障
+- 输出顺序稳定，适合 diff/审阅
+
+**查询参数（可选，与 `/api/v1/topology` 相同）：**
+
+- `client_name=nginx` — 只返回客户端服务名匹配的边
+- `server_name=mysql` — 只返回服务端服务名匹配的边
+- `namespace=production` — 只返回目标命名空间匹配的边
+
+**响应示例：**
+
+```text
+TOPOLOGY_SNAPSHOT
+updated_at: 2026-03-05T10:00:00Z
+node_count: 2
+edge_count: 1
+filters:
+  client_name: "-"
+  server_name: "-"
+  namespace: "-"
+
+NODES
+- id="proc_curl" name="curl" type="bare_process" namespace="-" pod_name="-"
+- id="proc_nginx" name="nginx" type="bare_process" namespace="production" pod_name="-"
+
+EDGES
+- index=1 client_id="proc_curl" client_name="curl" client_type="bare_process" client_namespace="-" client_pod_name="-" server_id="proc_nginx" server_name="nginx" server_type="bare_process" server_namespace="production" server_pod_name="-" active_connections=3 destination_host="10.0.2.15" destination_port="80" updated_at="2026-03-05T10:00:00Z"
+```
+
+建议场景：
+
+- `curl http://127.0.0.1:9098/api/v1/topology/text`
+- `curl 'http://127.0.0.1:9098/api/v1/topology/text?client_name=curl'`
 
 ### `GET /api/v1/edges`
 

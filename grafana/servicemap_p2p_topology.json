@@ -1,0 +1,492 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "Prometheus 数据源，需包含 servicemap 插件上报的指标",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "9.0.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" },
+    { "type": "panel", "id": "nodeGraph", "name": "Node Graph", "version": "" },
+    { "type": "panel", "id": "table", "name": "Table", "version": "" },
+    { "type": "panel", "id": "stat", "name": "Stat", "version": "" }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "servicemap 插件 P2P 服务拓扑图 — 展示 process/container → process/container 的调用关系",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 10,
+      "title": "服务拓扑概览",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 50 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 11,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "text": {}, "textMode": "auto" },
+      "pluginVersion": "9.5.0",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "count(count by (source_name) (servicemap:p2p_topology:active > 0))",
+          "legendFormat": "活跃源节点数",
+          "refId": "A"
+        }
+      ],
+      "title": "活跃源节点",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 20 },
+              { "color": "red", "value": 100 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 12,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "text": {}, "textMode": "auto" },
+      "pluginVersion": "9.5.0",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "count(servicemap:p2p_topology:active > 0)",
+          "legendFormat": "活跃边数",
+          "refId": "A"
+        }
+      ],
+      "title": "活跃拓扑边",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 13,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "text": {}, "textMode": "auto" },
+      "pluginVersion": "9.5.0",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum(servicemap:p2p_topology:active)",
+          "legendFormat": "活跃连接总数",
+          "refId": "A"
+        }
+      ],
+      "title": "活跃连接总数",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 20,
+      "title": "P2P 服务拓扑图（Node Graph）",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "展示服务间的 P2P 调用关系。节点 = 服务/进程，边 = 活跃 TCP 连接，边权重 = 连接数。\n\n过滤：使用上方变量 $namespace 和 $source_type 缩小范围。",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "id" },
+            "properties": [
+              { "id": "custom.width", "value": 200 },
+              { "id": "displayName", "value": "节点 ID" }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "title" },
+            "properties": [{ "id": "displayName", "value": "服务名" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "mainStat" },
+            "properties": [{ "id": "displayName", "value": "活跃连接" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "secondaryStat" },
+            "properties": [{ "id": "displayName", "value": "类型" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "source" },
+            "properties": [{ "id": "displayName", "value": "源节点" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "target" },
+            "properties": [{ "id": "displayName", "value": "目标节点" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "mainStatEdge" },
+            "properties": [{ "id": "displayName", "value": "连接数" }]
+          }
+        ]
+      },
+      "gridPos": { "h": 18, "w": 24, "x": 0, "y": 6 },
+      "id": 21,
+      "options": {
+        "nodes": {
+          "mainStatUnit": "short",
+          "secondaryStatUnit": ""
+        },
+        "edges": {
+          "mainStatUnit": "short"
+        }
+      },
+      "pluginVersion": "9.5.0",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "editorMode": "code",
+          "expr": "servicemap:p2p_topology:active{source_type=~\"$source_type\", dest_namespace=~\"$namespace|\"} > 0",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "refId": "Nodes_src",
+          "hide": false
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "editorMode": "code",
+          "expr": "servicemap:p2p_topology:active{dest_source_type=~\"$source_type\", dest_namespace=~\"$namespace|\"} > 0",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "refId": "Nodes_dst",
+          "hide": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organizeFields",
+          "options": {
+            "excludeByName": {
+              "__name__": true,
+              "Time": true,
+              "job": true,
+              "instance": true
+            }
+          }
+        }
+      ],
+      "title": "P2P 服务拓扑图",
+      "type": "nodeGraph"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 },
+      "id": 30,
+      "title": "边详情（source → destination）",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "每条 P2P 边的详细信息，包含发起方、接收方、连接数和命名空间。",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": {
+            "align": "auto",
+            "cellOptions": { "type": "auto" },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Value" },
+            "properties": [
+              { "id": "displayName", "value": "活跃连接数" },
+              { "id": "custom.width", "value": 120 },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 10 },
+                    { "color": "red", "value": 50 }
+                  ]
+                }
+              },
+              { "id": "custom.cellOptions", "value": { "type": "color-background" } }
+            ]
+          },
+          { "matcher": { "id": "byName", "options": "source_name" }, "properties": [{ "id": "displayName", "value": "源服务" }, { "id": "custom.width", "value": 150 }] },
+          { "matcher": { "id": "byName", "options": "dest_source_name" }, "properties": [{ "id": "displayName", "value": "目标服务" }, { "id": "custom.width", "value": 150 }] },
+          { "matcher": { "id": "byName", "options": "source_type" }, "properties": [{ "id": "displayName", "value": "源类型" }, { "id": "custom.width", "value": 120 }] },
+          { "matcher": { "id": "byName", "options": "dest_source_type" }, "properties": [{ "id": "displayName", "value": "目标类型" }, { "id": "custom.width", "value": 120 }] },
+          { "matcher": { "id": "byName", "options": "dest_namespace" }, "properties": [{ "id": "displayName", "value": "命名空间" }, { "id": "custom.width", "value": 120 }] }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 25 },
+      "id": 31,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "活跃连接数" }] },
+      "pluginVersion": "9.5.0",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "editorMode": "code",
+          "expr": "sort_desc(servicemap:p2p_topology:active{source_type=~\"$source_type\", dest_namespace=~\"$namespace|\"} > 0)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "refId": "A"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organizeFields",
+          "options": {
+            "excludeByName": {
+              "__name__": true,
+              "Time": true,
+              "job": true,
+              "instance": true
+            },
+            "renameByName": {}
+          }
+        }
+      ],
+      "title": "P2P 边详情",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 35 },
+      "id": 40,
+      "title": "连接速率趋势",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "P2P 边的 TCP 连接建立速率（5min 滑动窗口）",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 36 },
+      "id": 41,
+      "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "editorMode": "code",
+          "expr": "servicemap:p2p_topology:connect_rate5m{source_type=~\"$source_type\", dest_namespace=~\"$namespace|\"} > 0",
+          "legendFormat": "{{source_name}} → {{dest_source_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "P2P 边连接速率（5m）",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 44 },
+      "id": 50,
+      "title": "监听端点（所有服务）",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "当前各节点上报的监听端点。source_id → listen_ip:port 映射关系，是 P2P JOIN 的基础数据。",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": {
+            "align": "auto",
+            "cellOptions": { "type": "auto" },
+            "inspect": false
+          },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "source_name" }, "properties": [{ "id": "displayName", "value": "服务名" }, { "id": "custom.width", "value": 150 }] },
+          { "matcher": { "id": "byName", "options": "source_type" }, "properties": [{ "id": "displayName", "value": "类型" }, { "id": "custom.width", "value": 110 }] },
+          { "matcher": { "id": "byName", "options": "listen_ip" }, "properties": [{ "id": "displayName", "value": "监听 IP" }, { "id": "custom.width", "value": 140 }] },
+          { "matcher": { "id": "byName", "options": "port" }, "properties": [{ "id": "displayName", "value": "端口" }, { "id": "custom.width", "value": 80 }] },
+          { "matcher": { "id": "byName", "options": "instance" }, "properties": [{ "id": "displayName", "value": "categraf 节点" }, { "id": "custom.width", "value": 160 }] },
+          { "matcher": { "id": "byName", "options": "namespace" }, "properties": [{ "id": "displayName", "value": "命名空间" }, { "id": "custom.width", "value": 120 }] },
+          { "matcher": { "id": "byName", "options": "pod_name" }, "properties": [{ "id": "displayName", "value": "Pod 名" }, { "id": "custom.width", "value": 180 }] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 45 },
+      "id": 51,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true },
+      "pluginVersion": "9.5.0",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "editorMode": "code",
+          "expr": "servicemap_listen_endpoint{source_type=~\"$source_type\", namespace=~\"$namespace|\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "refId": "A"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organizeFields",
+          "options": {
+            "excludeByName": {
+              "__name__": true,
+              "Time": true,
+              "job": true,
+              "Value": true
+            }
+          }
+        }
+      ],
+      "title": "监听端点明细",
+      "type": "table"
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 38,
+  "tags": ["servicemap", "p2p-topology", "network"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "definition": "label_values(servicemap:p2p_topology:active, dest_namespace)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Namespace",
+        "multi": false,
+        "name": "namespace",
+        "options": [],
+        "query": {
+          "query": "label_values(servicemap:p2p_topology:active, dest_namespace)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0,
+        "includeAll": true,
+        "label": "类型",
+        "multi": false,
+        "name": "source_type",
+        "options": [
+          { "selected": true, "text": "All", "value": "$__all" },
+          { "selected": false, "text": "bare_process", "value": "bare_process" },
+          { "selected": false, "text": "container", "value": "container" }
+        ],
+        "query": "bare_process,container",
+        "refresh": 0,
+        "sort": 0,
+        "type": "custom"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Servicemap — P2P 服务拓扑",
+  "uid": "servicemap-p2p-topology",
+  "version": 1
+}
