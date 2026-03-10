@@ -16,8 +16,11 @@ type Config struct {
 	// Interval 聚合周期
 	Interval time.Duration
 
-	// QueryTimeout Prometheus 查询及 Remote Write 超时
+	// QueryTimeout 单次 Prometheus 查询超时（每阶段独立计时，互不挤占预算）
 	QueryTimeout time.Duration
+
+	// WriteTimeout Remote Write 写入超时（独立于查询超时，避免查询耗时导致写入静默失败）
+	WriteTimeout time.Duration
 
 	// EnableK8s 是否启用 K8s Service IP 解析
 	EnableK8s bool

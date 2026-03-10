@@ -28,7 +28,8 @@ func main() {
 	flag.DurationVar(&cfg.Interval, "interval", 60*time.Second, "聚合周期")
 	flag.BoolVar(&cfg.EnableK8s, "enable-k8s", false, "启用 K8s Service IP 解析（需要 kubeconfig 或 in-cluster 权限）")
 	flag.StringVar(&cfg.KubeConfig, "kubeconfig", "", "kubeconfig 文件路径（为空则使用 in-cluster 配置）")
-	flag.DurationVar(&cfg.QueryTimeout, "query-timeout", 30*time.Second, "Prometheus 查询超时")
+	flag.DurationVar(&cfg.QueryTimeout, "query-timeout", 30*time.Second, "Prometheus 查询超时（每次查询独立计时）")
+	flag.DurationVar(&cfg.WriteTimeout, "write-timeout", 30*time.Second, "Remote Write 写入超时（独立于查询超时）")
 	flag.Parse()
 
 	log.SetFlags(log.LstdFlags | log.Lshortfile)

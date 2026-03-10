@@ -106,9 +106,11 @@ func (s *APIServer) handleEdges(w http.ResponseWriter, r *http.Request) {
 	}
 
 	nodeMap := make(map[string]*nodeItem)
-	var edges []edgeItem
+	// edgeAgg 按 (ClientID, ServerID) 聚合：同一对节点之间可能存在多个端口的边，
+	// Node Graph Panel 只关心连通性，将连接数合并求和，ID 因此天然唯一且稳定。
+	edgeAgg := make(map[string]*edgeItem)
 
-	for i, e := range snap.Edges {
+	for _, e := range snap.Edges {
 		// 节点：源
 		if _, exists := nodeMap[e.ClientID]; !exists {
 			nodeMap[e.ClientID] = &nodeItem{
@@ -128,13 +130,23 @@ func (s *APIServer) handleEdges(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// 边
-		edges = append(edges, edgeItem{
-			ID:       generateEdgeID(i, e.ClientID, e.ServerID),
-			Source:   e.ClientID,
-			Target:   e.ServerID,
-			MainStat: e.ActiveConnections,
-		})
+		// 边：按 (ClientID, ServerID) 聚合，保证 ID 唯一且跨周期稳定
+		edgeID := e.ClientID + "->" + e.ServerID
+		if agg, exists := edgeAgg[edgeID]; exists {
+			agg.MainStat += e.ActiveConnections
+		} else {
+			edgeAgg[edgeID] = &edgeItem{
+				ID:       edgeID,
+				Source:   e.ClientID,
+				Target:   e.ServerID,
+				MainStat: e.ActiveConnections,
+			}
+		}
+	}
+
+	edges := make([]edgeItem, 0, len(edgeAgg))
+	for _, agg := range edgeAgg {
+		edges = append(edges, *agg)
 	}
 
 	var nodes []nodeItem
@@ -165,11 +177,6 @@ func (s *APIServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"status":"ok"}`))
-}
-
-func generateEdgeID(i int, src, dst string) string {
-	// 简单用索引，保证同一次快照内唯一
-	return src + "->" + dst
 }
 
 func (s *APIServer) filterTopologySnapshot(r *http.Request) (*TopologySnapshot, string, string, string) {

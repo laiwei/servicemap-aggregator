@@ -37,14 +37,16 @@ func (w *RemoteWriter) WriteP2PEdges(ctx context.Context, edges []P2PEdge) error
 	now := time.Now().UnixMilli()
 	var tsList []prompb.TimeSeries
 
-	// 聚合：同一 client_name → server_name 的边求和
+	// 聚合：同一 (client_name, client_namespace) → (server_name, server_namespace) 的边求和。
+	// client_namespace 纳入 key，防止不同命名空间中同名客户端服务的连接数被错误合并（M4）。
 	type key struct {
-		ClientName, ClientType, ServerName, ServerType, ServerNamespace string
+		ClientName, ClientNamespace, ClientType, ServerName, ServerType, ServerNamespace string
 	}
 	agg := make(map[key]float64)
 	for _, e := range edges {
 		k := key{
 			ClientName:      e.ClientName,
+			ClientNamespace: e.Namespace,
 			ClientType:      e.ClientType,
 			ServerName:      e.ServerName,
 			ServerType:      e.ServerType,
@@ -61,6 +63,7 @@ func (w *RemoteWriter) WriteP2PEdges(ctx context.Context, edges []P2PEdge) error
 			Labels: []prompb.Label{
 				{Name: "__name__", Value: "servicemap_p2p_topology_active"},
 				{Name: "client_name", Value: k.ClientName},
+				{Name: "client_namespace", Value: k.ClientNamespace},
 				{Name: "client_type", Value: k.ClientType},
 				{Name: "server_name", Value: k.ServerName},
 				{Name: "server_type", Value: k.ServerType},
